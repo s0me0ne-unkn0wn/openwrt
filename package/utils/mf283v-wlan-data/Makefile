@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=mf283v-wlan-data
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=
 PKG_MAINTAINER:=Dmitry Sinyavin <sinyavin@gmail.com>
@@ -15,12 +15,12 @@ include $(INCLUDE_DIR)/package.mk
 define Package/mf283v-wlan-data
   SECTION:=utils
   CATEGORY:=Utilities
-  TITLE:=ZTE MF283V factory WLAN data extractor
+  TITLE:=ZTE MF283V factory MAC and WLAN data extractor
   DEPENDS:=@TARGET_mdm9607 +ubi-utils
 endef
 
 define Package/mf283v-wlan-data/description
- Validate the redundant factory WLAN MAC and per-channel RF calibration data
+ Validate the redundant factory MAC and per-channel WLAN RF calibration data
  retained in the ZTE MF283V EFS and ZTEFILE partitions.
 endef
 

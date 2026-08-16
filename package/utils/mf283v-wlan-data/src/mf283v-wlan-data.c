@@ -254,32 +254,43 @@ static void write_efuse(const char *path, const uint8_t mac[6],
 
 static void usage(const char *name)
 {
-	fprintf(stderr, "usage: %s EFS2 EFSBAK CALIBRATION_DIR MAC_OUT EFUSE_OUT\n",
-		name);
+	fprintf(stderr,
+		"usage: %s EFS2 EFSBAK CALIBRATION_DIR MAC_OUT EFUSE_OUT\n"
+		"       %s --mac-only EFS2 EFSBAK MAC_OUT\n",
+		name, name);
 }
 
 int main(int argc, char **argv)
 {
 	uint8_t primary_mac[6] = { 0 }, backup_mac[6] = { 0 };
 	struct calibration cal;
+	const char *primary_path, *backup_path, *mac_path;
+	bool mac_only;
 
-	if (argc != 6) {
+	mac_only = argc == 5 && !strcmp(argv[1], "--mac-only");
+	if (!mac_only && argc != 6) {
 		usage(argv[0]);
 		return 2;
 	}
 
-	extract_nv4678(argv[1], EFS2_SIZE, primary_mac);
-	extract_nv4678(argv[2], EFSBAK_SIZE, backup_mac);
+	primary_path = argv[mac_only ? 2 : 1];
+	backup_path = argv[mac_only ? 3 : 2];
+	mac_path = argv[4];
+	extract_nv4678(primary_path, EFS2_SIZE, primary_mac);
+	extract_nv4678(backup_path, EFSBAK_SIZE, backup_mac);
 	if (memcmp(primary_mac, backup_mac, 6))
 		fail("EFS2 and EFSBAK NV 4678 values do not match", NULL);
 
-	read_calibration(argv[3], &cal);
-	write_mac(argv[4], primary_mac);
-	write_efuse(argv[5], primary_mac, &cal);
+	write_mac(mac_path, primary_mac);
+	if (!mac_only) {
+		read_calibration(argv[3], &cal);
+		write_efuse(argv[5], primary_mac, &cal);
+	}
 
-	printf("factory WLAN MAC %02x:%02x:%02x:%02x:%02x:%02x verified in EFS2 and EFSBAK\n",
+	printf("factory MAC %02x:%02x:%02x:%02x:%02x:%02x verified in EFS2 and EFSBAK\n",
 	       primary_mac[0], primary_mac[1], primary_mac[2], primary_mac[3],
 	       primary_mac[4], primary_mac[5]);
-	printf("factory RTL8192ES calibration validated for 14 channels and two RF paths\n");
+	if (!mac_only)
+		printf("factory RTL8192ES calibration validated for 14 channels and two RF paths\n");
 	return 0;
 }
