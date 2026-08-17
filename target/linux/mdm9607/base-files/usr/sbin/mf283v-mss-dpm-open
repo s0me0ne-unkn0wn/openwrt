@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+fail()
+{
+	echo "ERROR: $*" >&2
+	exit 1
+}
+
+[ -x /usr/bin/qmicli ] || fail "qmicli is absent"
+[ -d /sys/class/remoteproc/remoteproc0 ] || fail "MSS remoteproc is absent"
+[ "$(cat /sys/class/remoteproc/remoteproc0/state)" = "running" ] ||
+	fail "MSS remoteproc is not running"
+
+# The MF283V modem firmware uses QRTR node 3 and BAM-DMUX interface zero.
+# RX/TX pipe IDs match the DMA channels described by the board device tree.
+/usr/bin/qmicli -d qrtr://3 --dpm-open-port=\
+"hw-data-ep-type=bam-dmux,hw-data-ep-iface-number=0,hw-data-rx-id=5,hw-data-tx-id=4" ||
+	fail "failed to open the BAM-DMUX hardware data endpoint"
+
+echo "BAM-DMUX hardware data endpoint is ready for ModemManager."

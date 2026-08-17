@@ -99,10 +99,10 @@ Signed-off-by: Dmitry Sinyavin <sinyavin@gmail.com>
  	if (ret)
  		goto err;
  
-@@ -2252,6 +2315,9 @@ static int qcom_nandc_parse_dt(struct pl
- 		}
- 	}
- 
+@@ -2267,6 +2330,9 @@ static int qcom_nandc_parse_dt(struct pl
+		nandc->bam_cmd_lock = true;
+	}
+
 +	nandc->mdm9607_vendor_bbm =
 +		of_device_is_compatible(np, "qcom,mdm9607-nand");
 +
@@ -111,10 +111,9 @@ Signed-off-by: Dmitry Sinyavin <sinyavin@gmail.com>
  
 --- a/include/linux/mtd/nand-qpic-common.h
 +++ b/include/linux/mtd/nand-qpic-common.h
-@@ -427,6 +427,7 @@ struct qcom_nand_controller {
- 	int		buf_count;
- 	int		buf_start;
- 	unsigned int	max_cwperpage;
+@@ -429,6 +429,7 @@ struct qcom_nand_controller {
+	u32		bam_cmd_lock_group;
+	bool		bam_cmd_lock;
 +	bool		mdm9607_vendor_bbm;
  
  	int reg_read_pos;

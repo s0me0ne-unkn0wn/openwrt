@@ -18,6 +18,7 @@ define Device/zte_mf283v
 	DEVICE_DTS := qcom-mdm9607-zte-mf283v
 	DEVICE_DTS_CONFIG := config@1
 	DEVICE_PACKAGES := mtd ubi-utils mf283v-reboot mf283v-wlan-data \
+		modemmanager qmi-utils \
 		kmod-rtl8192es \
 		kmod-dsa-qca8k kmod-phy-qca83xx wpad-basic-mbedtls ethtool
 endef

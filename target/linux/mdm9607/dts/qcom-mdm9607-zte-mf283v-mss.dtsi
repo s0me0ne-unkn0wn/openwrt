@@ -148,6 +148,7 @@
 			qcom,smem-state-names = "pc", "pc-ack";
 			dmas = <&bam_dmux_dma 4>, <&bam_dmux_dma 5>;
 			dma-names = "tx", "rx";
+			qcom,initial-channels = <0>;
 		};
 	};
 
@@ -169,6 +170,7 @@
 		clock-names = "core";
 		dmas = <&qpic_bam 0>, <&qpic_bam 1>, <&qpic_bam 2>;
 		dma-names = "tx", "rx", "cmd";
+		qcom,bam-command-lock-group = <1>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 

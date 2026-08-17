@@ -1,0 +1,103 @@
+From: Dmitry Sinyavin <sinyavin@gmail.com>
+Date: Mon, 17 Aug 2026 09:45:00 +0200
+Subject: [PATCH] net: wwan: qcom_bam_dmux: support AP-initiated channels
+
+The BAM-DMUX protocol normally relies on the modem firmware announcing
+each available data channel with an OPEN command.  Some firmware instead
+waits for the application processor to open a known channel first, leaving
+no network device through which the AP can initiate the exchange.
+
+Add an optional firmware-description property listing channels which
+should be registered before an OPEN command arrives.  Opening such a
+network device uses the existing BAM-DMUX OPEN command and otherwise
+follows the normal data path.  Firmware which announces its channels
+remains unchanged.
+
+Signed-off-by: Dmitry Sinyavin <sinyavin@gmail.com>
+---
+ .../bindings/net/qcom,bam-dmux.yaml           | 14 +++++++++
+ drivers/net/wwan/qcom_bam_dmux.c              | 33 +++++++++++++++++++
+ 2 files changed, 47 insertions(+)
+
+--- a/Documentation/devicetree/bindings/net/qcom,bam-dmux.yaml
++++ b/Documentation/devicetree/bindings/net/qcom,bam-dmux.yaml
+@@ -59,6 +59,19 @@ properties:
+       - const: tx
+       - const: rx
+ 
++  qcom,initial-channels:
++    $ref: /schemas/types.yaml#/definitions/uint32-array
++    minItems: 1
++    maxItems: 8
++    uniqueItems: true
++    items:
++      minimum: 0
++      maximum: 7
++    description:
++      Data channels which the application processor may open before the modem
++      firmware announces them. Omit this property when the firmware announces
++      all available channels with BAM-DMUX OPEN commands.
++
+ required:
+   - compatible
+   - interrupts
+@@ -94,5 +107,6 @@ examples:
+ 
+             dmas = <&bam_dmux_dma 4>, <&bam_dmux_dma 5>;
+             dma-names = "tx", "rx";
++            qcom,initial-channels = <0>;
+         };
+     };
+--- a/drivers/net/wwan/qcom_bam_dmux.c
++++ b/drivers/net/wwan/qcom_bam_dmux.c
+@@ -16,5 +16,6 @@
+ #include <linux/platform_device.h>
+ #include <linux/pm_runtime.h>
++#include <linux/property.h>
+ #include <linux/soc/qcom/smem_state.h>
+ #include <linux/spinlock.h>
+ #include <linux/wait.h>
+@@ -766,4 +767,6 @@ static int bam_dmux_probe(struct platform
+ 	struct device *dev = &pdev->dev;
+ 	struct bam_dmux *dmux;
++	u32 initial_channels[BAM_DMUX_NUM_CH];
++	int num_initial_channels;
+ 	int ret, pc_ack_irq, i;
+ 	unsigned int bit;
+@@ -843,6 +846,36 @@ static int bam_dmux_probe(struct platform
+ 			bam_dmux_power_off(dmux);
+ 	}
+ 
++	if (device_property_present(dev, "qcom,initial-channels")) {
++		num_initial_channels =
++			device_property_count_u32(dev, "qcom,initial-channels");
++		if (num_initial_channels < 1 ||
++		    num_initial_channels > BAM_DMUX_NUM_CH) {
++			dev_err(dev, "Invalid initial channels\n");
++			ret = -EINVAL;
++			goto err_disable_pm;
++		}
++
++		ret = device_property_read_u32_array(dev, "qcom,initial-channels",
++						     initial_channels,
++						     num_initial_channels);
++		if (ret) {
++			dev_err(dev, "Failed to read initial channels: %d\n", ret);
++			goto err_disable_pm;
++		}
++
++		for (i = 0; i < num_initial_channels; i++) {
++			if (initial_channels[i] >= BAM_DMUX_NUM_CH) {
++				dev_err(dev, "Invalid initial channel %u\n",
++					initial_channels[i]);
++				ret = -EINVAL;
++				goto err_disable_pm;
++			}
++			set_bit(initial_channels[i], dmux->remote_channels);
++		}
++		schedule_work(&dmux->register_netdev_work);
++	}
++
+ 	return 0;
+ 
+ err_disable_pm:

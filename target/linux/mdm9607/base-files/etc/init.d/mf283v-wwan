@@ -1,0 +1,23 @@
+#!/bin/sh /etc/rc.common
+
+START=71
+
+start()
+{
+	local attempt=0
+
+	# wwan0 is registered before userspace starts, so its original net uevent
+	# may predate ModemManager's hotplug cache.  Wait for the D-Bus service and
+	# replay the existing port once.  The S69 service also stores the event for
+	# later ModemManager restarts.
+	while ! mmcli -L >/dev/null 2>&1 && [ "$attempt" -lt 30 ]; do
+		sleep 1
+		attempt=$((attempt + 1))
+	done
+	[ "$attempt" -lt 30 ] || {
+		echo "ERROR: ModemManager did not become ready" >&2
+		return 1
+	}
+
+	mmcli --report-kernel-event=action=add,name=wwan0,subsystem=net
+}

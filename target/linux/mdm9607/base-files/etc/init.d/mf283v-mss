@@ -1,0 +1,45 @@
+#!/bin/sh /etc/rc.common
+
+START=69
+
+cache_wwan_event()
+{
+	local sysfs_path
+
+	[ -r /usr/share/ModemManager/modemmanager.common ] || return 0
+	[ -e /sys/class/net/wwan0 ] || {
+		echo "ERROR: BAM-DMUX network interface is absent" >&2
+		return 1
+	}
+
+	. /usr/share/ModemManager/modemmanager.common
+	mkdir -m 0755 -p "$MODEMMANAGER_RUNDIR"
+	sysfs_path=$(readlink -f /sys/class/net/wwan0) || return 1
+	mm_report_event add wwan0 net "$sysfs_path"
+}
+
+start()
+{
+	local state
+
+	state=$(cat /sys/class/remoteproc/remoteproc0/state 2>/dev/null) || {
+		echo "ERROR: MSS remoteproc is absent" >&2
+		return 1
+	}
+
+	case "$state" in
+	offline)
+		/usr/sbin/mf283v-mss-prepare || return 1
+		/usr/sbin/mf283v-mss-start || return 1
+		;;
+	running)
+		;;
+	*)
+		echo "ERROR: unexpected MSS remoteproc state: $state" >&2
+		return 1
+		;;
+	esac
+
+	/usr/sbin/mf283v-mss-dpm-open || return 1
+	cache_wwan_event
+}
