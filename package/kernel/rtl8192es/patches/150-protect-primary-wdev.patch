@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Dmitry Sinyavin <sinyavin@gmail.com>
+Date: Fri, 14 Aug 2026 20:00:00 +0200
+Subject: [PATCH] rtl8192es: preserve the primary full-MAC wdev
+
+Reject deletion of the persistent primary interface to avoid recursively
+entering cfg80211 while its wiphy mutex is held.
+
+Signed-off-by: Dmitry Sinyavin <sinyavin@gmail.com>
+---
+--- a/os_dep/linux/ioctl_cfg80211.c
++++ b/os_dep/linux/ioctl_cfg80211.c
+@@ -4903,6 +4903,20 @@ static int cfg80211_rtw_del_virtual_intf
+ 	if (ndev) {
+ 		adapter = (_adapter *)rtw_netdev_priv(ndev);
+ 		pwdev_priv = adapter_wdev_data(adapter);
++#ifdef CONFIG_RTW_MF283V_PRIMARY_WDEV
++		/*
++		 * The RTL8192ES firmware has one persistent primary full-MAC
++		 * interface.  del_virtual_intf() is called with the wiphy mutex
++		 * held; unregistering that netdev recursively enters cfg80211's
++		 * NETDEV_UNREGISTER notifier and deadlocks on the same mutex.
++		 * Userspace must bring this interface down and reuse it instead.
++		 */
++		if (is_primary_adapter(adapter)) {
++			RTW_WARN(FUNC_NDEV_FMT" refusing to delete primary wdev\n", FUNC_NDEV_ARG(ndev));
++			ret = -EOPNOTSUPP;
++			goto exit;
++		}
++#endif
+ 
+ 		if (ndev == pwdev_priv->pmon_ndev) {
+ 			unregister_netdevice(ndev);

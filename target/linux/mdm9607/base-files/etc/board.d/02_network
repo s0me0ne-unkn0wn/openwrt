@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+. /lib/functions/system.sh
+. /lib/functions/uci-defaults.sh
+
+board_config_update
+
+case "$(board_name)" in
+zte,mf283v)
+	# The factory driver treats all five QCA8337 PHYs as LAN.  Keep them
+	# together until the chassis labels have been mapped to switch ports.
+	ucidef_set_interface_lan "lan1 lan2 lan3 lan4 lan5"
+	;;
+esac
+
+board_config_flush
+
+exit 0

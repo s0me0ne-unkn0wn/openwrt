@@ -40,13 +40,42 @@ const mesh_params = {
 	mesh_nolearn: "nolearn"
 };
 
+function wdev_is_persistent_rtl8192es(name)
+{
+	let phy = readlink(`/sys/class/net/${name}/phy80211`);
+	if (!phy)
+		return false;
+
+	let driver = readlink(`/sys/class/ieee80211/${basename(phy)}/device/driver`);
+	return driver && basename(driver) == "rtl8192es";
+}
+
 function wdev_remove(name)
 {
+	/* The RTL8192ES primary full-MAC netdev is persistent. */
+	if (wdev_is_persistent_rtl8192es(name)) {
+		rtnl.request(rtnl.const.RTM_SETLINK, 0, {
+			dev: name,
+			change: 1,
+			flags: 0
+		});
+		return;
+	}
+
 	nl80211.request(nl80211.const.NL80211_CMD_DEL_INTERFACE, 0, { dev: name });
 }
 
 function __phy_is_fullmac(phyidx)
 {
+	/*
+	 * rtl8192es manages a single primary netdev in firmware, but advertises
+	 * its monitor interface as software-created.  Keep that valid kernel
+	 * capability while making hostap reuse the primary netdev for AP mode.
+	 */
+	let driver = readlink(`/sys/class/ieee80211/phy${phyidx}/device/driver`);
+	if (driver && basename(driver) == "rtl8192es")
+		return true;
+
 	let data = nl80211.request(nl80211.const.NL80211_CMD_GET_WIPHY, 0, { wiphy: phyidx });
 
 	return !data.software_iftypes.monitor;
@@ -112,6 +141,16 @@ function wdev_create(phy, name, data)
 	if (reuse_ifname &&
 	    (reuse_ifname == name ||
 	     rtnl.request(rtnl.const.RTM_SETLINK, 0, { dev: reuse_ifname, ifname: name}) != false)) {
+		/*
+		 * macaddr_init() sees the persistent primary netdev and reserves its
+		 * current address.  Without this override every reload advances the
+		 * single RTL8192ES interface to a locally administered VIF address.
+		 * The primary netdev already owns the required factory address; omit
+		 * NL80211_ATTR_MAC entirely and only change the interface type.
+		 */
+		if (wdev_is_persistent_rtl8192es(name))
+			delete req.mac;
+
 		req.dev = req.ifname;
 		delete req.ifname;
 		nl80211.request(nl80211.const.NL80211_CMD_SET_INTERFACE, 0, req);
@@ -193,6 +232,11 @@ const phy_proto = {
 
 		this.for_each_wdev((wdev) => {
 			let macaddr = wdev_macaddr(wdev);
+			/* The persistent primary netdev is the interface being reused. */
+			if (wdev_is_persistent_rtl8192es(wdev)) {
+				delete this.macaddr_list[macaddr];
+				return;
+			}
 			this.macaddr_list[macaddr] ??= -1;
 		});
 
